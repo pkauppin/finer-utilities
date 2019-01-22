@@ -14,7 +14,7 @@ The color codes are roughly as follows:
 - **red**: persons & beings (`EnamexPrs___`, excluding titles)
 - **green**: orgainzations (`EnamexOrg___`)
 - **purple**: products (`EnamexPro___`)
-- **dark gray: events (`EnamexEvt___`)
+- **dark gray**: events (`EnamexEvt___`)
 - **light gray**: numerical expressions (`NumexMsr___`)
 - **yellow**: temporal expressions (`TimexTme___`)
 
