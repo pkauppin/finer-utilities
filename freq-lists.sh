@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Creates frequency lists for all NE categories found in input
+
 INFILE=$1
 
 for TAG in $( ./get-tags.sh $INFILE ) ; do

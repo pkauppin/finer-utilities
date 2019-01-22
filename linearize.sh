@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Flattens tabular FiNER output back into running text.
-# Line breaks are inserted after certain elements such as 'paragraph' and 'h1'.
+# Empty lines are inserted after certain elements such as 'paragraph' and 'h1'.
 
 sed -r 's#^([^\t]+)(\t([^\t]*\t)*)<((Enamex|Timex|Numex)[^>]*)/>#<\4>\1</\4>\2#g' |
 sed -r 's#^([^\t]+)(\t([^\t]*\t)*)<((Enamex|Timex|Numex)[^>]*)/>#<\4>\1</\4>\2#g' |
