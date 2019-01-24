@@ -54,12 +54,24 @@ pl_forms = {
 
 pl_regex = '.*(' + '|'.join(pluralia) + ')'
 
+
+# Naively generate partitive form from lemma
+par_suffixes = {
+    (True , True ) : '[ia]',
+    (True , False) : '[iä]',
+    (False, True ) : '[a]',
+    (False, False) : '[ä]',
+}
+
 def partitive(lemma):
-    if len(lemma) < 3:
+    
+    if len(lemma) < 4 or lemma in ['kcal']:
         return lemma
-    elif re.search('[aou]', lemma[-5:]):
-        return lemma + '[a]'
-    return lemma + '[ä]'
+    
+    cons = lemma[-1] not in 'aeiouyäö'
+    back = re.search('[aou]', lemma[-5:]) != None
+    
+    return lemma + par_suffixes[(cons, back)]
 
 
 # Check morhological analyses for agreement in NUM and CASE
@@ -67,6 +79,7 @@ def congr(morph1, morph2):
     tags1 = re.findall('(CASE|NUM)=[A-Z]+', morph1)
     tags2 = re.findall('(CASE|NUM)=[A-Z]+', morph2)
     return tags1 == tags2
+
 
 # return lemma (and possible plural marker) for word
 def get_lemma(wform, lemma, morph, tag=''):
@@ -88,11 +101,14 @@ def parse_numex(entity, tag='Numex'):
 
     wform, lemma, morph = unit
     
-    if ':' in wform or re.search('[A-Z]', wform):
+    if re.search('[A-Z/:]', wform):
         normalized.append(re.sub(':.+', '', wform))
-        
-    elif normalized == ['yksi'] or normalized == ['1']:
+    
+    elif normalized == [ 'yksi' ] or normalized == [ '1' ]:
         normalized.append(lemma)
+    
+    elif '[CASE=PAR]' in morph:
+        normalized.append(wform)
     
     else:
         normalized.append(partitive(lemma))
@@ -111,11 +127,14 @@ def parse_timex(entity, tag='Timex'):
         wform = wform.lower()
         
         if wform.endswith('kuuta') and len(entity) > 0:
+
             wform2, lemma2, morph2 = entity.pop()
+
             if 'SUBCAT=ORD' in morph2:
-                normalized += [ wform ]
+                normalized.append(wform)
             else:
-                normalized += [ lemma ]
+                normalized.append(lemma)
+                
             wform, lemma, morph = wform2, lemma2, morph2
 
         if wform in ['aikana', 'välillä', 'aikaa']:
@@ -124,24 +143,25 @@ def parse_timex(entity, tag='Timex'):
             return ' '.join(normalized)
 
         if 'SUBCAT=ORD'in morph:
-            normalized += [ lemma ]
+            normalized.append(lemma)
             if len(entity) > 0:
                 wform, lemma, morph = entity.pop()
                 if wform.endswith('kuun'):
-                    normalized += [ wform ]
+                    normalized.append(wform)
                 else:
-                    normalized += [ lemma ]
+                    normalized.append(lemma)
+
         elif re.fullmatch('[0-9]+[.]?', wform):
-            normalized += [ wform ]
-
+            normalized.append(wform)
+        
         elif wform in ['vuonna', 'vuosina']:
-            normalized += [ wform ]
-
+            normalized.append(wform)
+        
         elif re.fullmatch('vuosi|.+kuu|päivä', lemma):
-            normalized += [ lemma ]
-
+            normalized.append(lemma)
+        
         else:
-            normalized += [ wform ]
+            normalized.append(wform)
     
     normalized = normalized[::-1]
     return ' '.join(normalized)
@@ -150,25 +170,28 @@ def parse_timex(entity, tag='Timex'):
 def parse_enamex(entity, tag='Enamex'):
     
     normalized = []
-    
     wform, lemma, morph = entity.pop()
+    
     if re.fullmatch('(18|19|20)[0-9][0-9]', wform) and tag.startswith('EnamexEvt') and len(entity) > 0:
-        normalized += [ wform.lower() ]
+        normalized.append(wform.lower())
         ( wform, lemma, morph ) = entity.pop()
+    
+    normalized.append(get_lemma(wform, lemma, morph, tag))
+    
+    while len(entity) > 0 and not wform.startswith('-'):
 
-    normalized += [ get_lemma(wform, lemma, morph, tag) ]
-    while len(entity) > 0 and wform[0] != '-':
-        morph0 = morph
-        wform, lemma, morph = entity.pop()
-        if re.search('POS=ADJECTIVE|SUBCAT=ORD|SUBCAT=QUANTOR', morph) and congr(morph, morph0):
-            normalized += [ get_lemma(wform, lemma, morph, tag) ]
+        wform2, lemma2, morph2 = entity.pop()
+
+        if re.search('POS=ADJECTIVE|SUBCAT=ORD|SUBCAT=QUANTOR', morph) and congr(morph, morph2):
+            normalized.append(get_lemma(wform2, lemma2, morph2, tag))
         else:
-            normalized += [ wform.lower() ]
+            normalized.append(wform.lower())
             break
+        
+        wform, lemma, morph = wform2, lemma2, morph2
     
     normalized = [ wform.lower() for wform, lemma, morph in entity ] + normalized[::-1]
     return ' '.join(normalized)
-
 
 
 tag_columns = [ [], [], [], [] ]
@@ -182,13 +205,13 @@ for n, line in enumerate(stdin):
     if line != '':
         
         if '\t[POS=' not in line:
-            stderr.write('WARNING: Line %i: Irregular morphological labels detected!\n' % n)
+            stderr.write('WARNING: Line %i: Irregular morphological labels detected!\n' % (n+1))
         try:
             fields = line.split('\t')
             wform, lemma, morph, semtag = fields[0:4]
             nertags = fields[4:]
         except:
-            stderr.write('WARNING: Line %i: unexpected number of fields!\n' % n)
+            stderr.write('WARNING: Line %i: unexpected number of fields!\n' % (n+1))
             exit(1)
         
         analyses.append(( wform, lemma, morph, semtag, n ))
@@ -199,11 +222,10 @@ for n, line in enumerate(stdin):
         
         for nertag, tag_column in zip(nertags, tag_columns):
             tag_column.append(nertag)
-    
+        
     else:
 
         tag_columns = tag_columns[0:max_depth]
-        
         entities = []
         
         for tag_column in tag_columns:
@@ -217,6 +239,7 @@ for n, line in enumerate(stdin):
                     i0  = i
                     tag = nertag.strip('<>/')
                     tuples.append(( wform, lemma.lower(), morph, ))
+                
                 elif tuples != []:
                     tuples.append(( wform, lemma.lower(), morph, ))
                     
@@ -224,19 +247,25 @@ for n, line in enumerate(stdin):
                 cond2 = nertag.startswith('<'+tag) and nertag.endswith('/>')
                 
                 if cond1 or cond2:
+
                     if tag.startswith('Enamex'):
                         ent_str = parse_enamex(tuples, tag)
+
                     elif tag.startswith('Timex'):
                         ent_str = parse_timex(tuples, tag)
+
                     elif tag.startswith('Numex'):
                         ent_str = parse_numex(tuples, tag)
+
                     else:
                         ent_str = ' '.join([ t[0] for t in tuples ])
+
                     entities.append(( i0, i, ent_str, tag, ))
                     tag    = '#'
                     tuples = []
         
         entities.sort()
+        
         for i1, i2, ent_str, tag in entities:
             print('%i,%i\t%s\t%s' % ( i1, i2, ent_str, tag ))
 
