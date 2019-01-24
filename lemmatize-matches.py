@@ -185,7 +185,7 @@ def parse_enamex(entity, tag='Enamex'):
         if re.search('POS=ADJECTIVE|SUBCAT=ORD|SUBCAT=QUANTOR', morph) and congr(morph, morph2):
             normalized.append(get_lemma(wform2, lemma2, morph2, tag))
         else:
-            normalized.append(wform.lower())
+            normalized.append(wform2.lower())
             break
         
         wform, lemma, morph = wform2, lemma2, morph2
