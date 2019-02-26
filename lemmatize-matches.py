@@ -63,9 +63,25 @@ par_suffixes = {
     (False, False) : '[ä]',
 }
 
-def partitive(lemma):
+par_forms = {
+    'vuosi' : 'vuotta',
+    'aste'  : 'astetta',
+    'kcal'  : 'kcal',
+    }
+
+def get_partitive(wform, lemma, morph):
+
+    if re.search('[A-Z0-9/:.]', wform):
+        return re.sub(':.+', '', wform)
     
-    if len(lemma) < 4 or lemma in ['kcal']:
+    elif '[CASE=PAR]' in morph:
+        return wform
+    
+    for nom, par in par_forms.items():
+        if lemma.endswith(nom):
+            return (lemma+'#').replace(nom+'#', par)
+    
+    if len(lemma) < 4:
         return lemma
     
     cons = lemma[-1] not in 'aeiouyäö'
@@ -96,22 +112,29 @@ def get_lemma(wform, lemma, morph, tag=''):
 
 def parse_numex(entity, tag='Numex'):
 
+    normalized = []
     unit = entity.pop()
-    normalized = [ lemma for wform, lemma, morph in entity ]
 
+    while len(entity) > 0:
+        
+        wform, lemma, morph = entity.pop()
+
+        if len(entity) > 0 and 'NUMERAL' in morph:
+            normalized.append(get_partitive(wform, lemma, morph))
+        
+        elif len(entity) > 0 and re.search('PROPER.*CASE=GEN', morph) and tag == 'NumexMsrCur':
+            normalized.append(wform.lower())
+
+        else:
+            normalized.append(lemma)
+
+    normalized.reverse()
     wform, lemma, morph = unit
     
-    if re.search('[A-Z/:]', wform):
-        normalized.append(re.sub(':.+', '', wform))
-    
-    elif normalized == [ 'yksi' ] or normalized == [ '1' ]:
+    if normalized[:1] == [ 'yksi' ] or normalized[:1] == [ '1' ]:
         normalized.append(lemma)
-    
-    elif '[CASE=PAR]' in morph:
-        normalized.append(wform)
-    
     else:
-        normalized.append(partitive(lemma))
+        normalized.append(get_partitive(wform, lemma, morph))
         
     return ' '.join(normalized)
 
